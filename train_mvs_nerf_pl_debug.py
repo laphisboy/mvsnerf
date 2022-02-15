@@ -57,7 +57,10 @@ class MVSSystem(LightningModule):
         self.learning_rate = args.lrate
 
         # Create nerf model
-        self.render_kwargs_train, self.render_kwargs_test, start, self.grad_vars = create_nerf_mvs(args, use_mvs=True, dir_embedder=False, pts_embedder=True)
+        self.render_kwargs_train, self.render_kwargs_test, start, self.grad_vars = create_nerf_mvs_debug(args, use_mvs=True, dir_embedder=False, pts_embedder=True)
+        
+        ForkedPdb().set_trace()
+        
         filter_keys(self.render_kwargs_train)
 
         # Create mvs model
@@ -119,9 +122,6 @@ class MVSSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         if 'scan' in batch.keys():
             batch.pop('scan')
-            
-        ForkedPdb().set_trace()
-            
         log, loss = {},0
         data_mvs, pose_ref = self.decode_batch(batch)
         imgs, proj_mats = data_mvs['images'], data_mvs['proj_mats']
@@ -140,8 +140,7 @@ class MVSSystem(LightningModule):
 
         rgb, disp, acc, depth_pred, alpha, ret = rendering(args, pose_ref, rays_pts, rays_NDC, depth_candidates, rays_o, rays_dir,
                                                        volume_feature, imgs[:, :-1], img_feat=None,  **self.render_kwargs_train)
-
-
+        
         if self.args.with_depth:
             mask = rays_depth > 0
             if self.args.with_depth_loss:

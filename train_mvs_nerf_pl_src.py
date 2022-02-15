@@ -1,12 +1,12 @@
-from opt import config_parser
+from opt_src import config_parser
 from torch.utils.data import DataLoader
 
 import imageio
 from data import dataset_dict
 
 # models
-from models import *
-from renderer import *
+from models_src import *
+from renderer_src import *
 from utils import *
 
 # optimizer, scheduler, visualization
@@ -17,20 +17,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer, loggers
 
-import sys; import pdb
-
-class ForkedPdb(pdb.Pdb):
-    """A Pdb subclass that may be used
-    from a forked multiprocessing child
-
-    """
-    def interaction(self, *args, **kwargs):
-        _stdin = sys.stdin
-        try:
-            sys.stdin = open('/dev/stdin')
-            pdb.Pdb.interaction(self, *args, **kwargs)
-        finally:
-            sys.stdin = _stdin
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -50,7 +36,7 @@ class MVSSystem(LightningModule):
     def __init__(self, args):
         super(MVSSystem, self).__init__()
         self.args = args
-        self.args.feat_dim = 8+3*4
+        self.args.feat_dim = 8+4*(self.args.num_src_views) # 8+3*3
         self.idx = 0
 
         self.loss = SL1Loss()
@@ -92,8 +78,12 @@ class MVSSystem(LightningModule):
     def prepare_data(self):
         dataset = dataset_dict[self.args.dataset_name]
         train_dir, val_dir = self.args.datadir , self.args.datadir
-        self.train_dataset = dataset(root_dir=train_dir, split='train', max_len=-1 , downSample=args.imgScale_train)
-        self.val_dataset   = dataset(root_dir=val_dir, split='val', max_len=10 , downSample=args.imgScale_test)#
+        self.train_dataset = dataset(root_dir=train_dir, split='train', 
+                                     views_type=args.views_type, n_views=args.num_src_views,
+                                     max_len=-1 , downSample=args.imgScale_train)
+        self.val_dataset   = dataset(root_dir=val_dir, split='val', 
+                                     views_type=args.views_type, n_views=args.num_src_views, 
+                                     max_len=10 , downSample=args.imgScale_test)#
 
 
     def configure_optimizers(self):
@@ -119,16 +109,13 @@ class MVSSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         if 'scan' in batch.keys():
             batch.pop('scan')
-            
-        ForkedPdb().set_trace()
-            
+                        
         log, loss = {},0
         data_mvs, pose_ref = self.decode_batch(batch)
         imgs, proj_mats = data_mvs['images'], data_mvs['proj_mats']
         near_fars, depths_h = data_mvs['near_fars'], data_mvs['depths_h']
-
-
-        volume_feature, img_feat, depth_values = self.MVSNet(imgs[:, :3], proj_mats[:, :3], near_fars[0,0],pad=args.pad)
+        
+        volume_feature, img_feat, depth_values = self.MVSNet(imgs[:, :-1], proj_mats[:, :-1], near_fars[0,0],pad=args.pad)
         imgs = self.unpreprocess(imgs)
 
 
@@ -210,7 +197,7 @@ class MVSSystem(LightningModule):
             args.img_downscale = torch.rand((1,)) * 0.75 + 0.25  # for super resolution
             world_to_ref = pose_ref['w2cs'][0]
             tgt_to_world, intrinsic = pose_ref['c2ws'][-1], pose_ref['intrinsics'][-1]
-            volume_feature, img_feat, _ = self.MVSNet(imgs[:, :3], proj_mats[:, :3], near_fars[0], pad=args.pad)
+            volume_feature, img_feat, _ = self.MVSNet(imgs[:, :-1], proj_mats[:, :-1], near_fars[0], pad=args.pad)
             imgs = self.unpreprocess(imgs)
             rgbs, depth_preds = [],[]
             for chunk_idx in range(H*W//args.chunk + int(H*W%args.chunk>0)):

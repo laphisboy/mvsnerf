@@ -17,21 +17,6 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer, loggers
 
-import sys; import pdb
-
-class ForkedPdb(pdb.Pdb):
-    """A Pdb subclass that may be used
-    from a forked multiprocessing child
-
-    """
-    def interaction(self, *args, **kwargs):
-        _stdin = sys.stdin
-        try:
-            sys.stdin = open('/dev/stdin')
-            pdb.Pdb.interaction(self, *args, **kwargs)
-        finally:
-            sys.stdin = _stdin
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SL1Loss(nn.Module):
@@ -119,9 +104,6 @@ class MVSSystem(LightningModule):
     def training_step(self, batch, batch_nb):
         if 'scan' in batch.keys():
             batch.pop('scan')
-            
-        ForkedPdb().set_trace()
-            
         log, loss = {},0
         data_mvs, pose_ref = self.decode_batch(batch)
         imgs, proj_mats = data_mvs['images'], data_mvs['proj_mats']
@@ -140,8 +122,7 @@ class MVSSystem(LightningModule):
 
         rgb, disp, acc, depth_pred, alpha, ret = rendering(args, pose_ref, rays_pts, rays_NDC, depth_candidates, rays_o, rays_dir,
                                                        volume_feature, imgs[:, :-1], img_feat=None,  **self.render_kwargs_train)
-
-
+        
         if self.args.with_depth:
             mask = rays_depth > 0
             if self.args.with_depth_loss:
@@ -333,7 +314,8 @@ if __name__ == '__main__':
                       check_val_every_n_epoch = max(system.args.num_epochs//system.args.N_vis,1),
                       benchmark=True,
                       precision=16 if args.use_amp else 32,
-                      amp_level='O1')
+                      amp_level='O1',
+                      profiler="advanced")
 
     trainer.fit(system)
     system.save_ckpt()

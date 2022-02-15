@@ -9,8 +9,6 @@ import torch
 from torchvision import transforms as T
 import torchvision.transforms.functional as F
 
-import sys; import pdb
-
 
 def colorjitter(img, factor):
     # brightness_factor,contrast_factor,saturation_factor,hue_factor
@@ -22,8 +20,8 @@ def colorjitter(img, factor):
     return img
 
 
-class MVSDatasetDTU(Dataset):
-    def __init__(self, root_dir, split, n_views=3, levels=1, img_wh=None, downSample=1.0, max_len=-1):
+class MVSDatasetDTU_src(Dataset):
+    def __init__(self, root_dir, split, views_type='dense', n_views=3, levels=1, img_wh=None, downSample=1.0, max_len=-1):
         """
         img_wh should be set to a tuple ex: (1152, 864) to enable test mode!
         """
@@ -40,6 +38,7 @@ class MVSDatasetDTU(Dataset):
             assert img_wh[0] % 32 == 0 and img_wh[1] % 32 == 0, \
                 'img_wh must both be multiples of 32!'
         self.build_metas()
+        self.views_type = views_type
         self.n_views = n_views
         self.levels = levels  # FPN levels
         self.build_proj_mats()
@@ -64,7 +63,7 @@ class MVSDatasetDTU(Dataset):
         self.id_list = []
 
         for scan in self.scans:
-            with open(f'configs/dtu_pairs.txt') as f:
+            with open(f'configs/dtu_all_pairs.txt') as f:
                 num_viewpoint = int(f.readline())
                 # viewpoints (49)
                 for _ in range(num_viewpoint):
@@ -73,7 +72,7 @@ class MVSDatasetDTU(Dataset):
                     for light_idx in light_idxs:
                         self.metas += [(scan, light_idx, ref_view, src_views)]
                         self.id_list.append([ref_view] + src_views)
-                
+        
         self.id_list = np.unique(self.id_list)
         self.build_remap()
 
@@ -140,11 +139,45 @@ class MVSDatasetDTU(Dataset):
     def __getitem__(self, idx):
         sample = {}
         scan, light_idx, target_view, src_views = self.metas[idx]
-        if self.split=='train':
-            ids = torch.randperm(5)[:self.n_views]
+        
+        # don't need to differentiate train and validation dataset for views_type
+#         if self.split=='train':
+
+        # below methods of sampling source view cameras all has some level of randomness (except for 'very_dense')
+
+        # 1. dense: target view and source views are close together (n_views <= 32)
+        if self.views_type=='dense':
+#             print(self.views_type, '== dense')
+            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views]
             view_ids = [src_views[i] for i in ids] + [target_view]
-        else:
+
+        # 2. very dense: target view and source views are as clsoe as possible
+        elif self.views_type=='very_dense':
+#             print(self.views_type, '== very_dense')
+            print(src_views)
             view_ids = [src_views[i] for i in range(self.n_views)] + [target_view]
+
+        # 3. random: source view is picked at random
+        elif self.views_type=='random':
+#             print(self.views_type, '== random')
+            ids = torch.randperm(48)[:self.n_views]
+            view_ids = [src_views[i] for i in ids] + [target_view]
+            
+        # 4. sparse: source views are evenly spaced out
+        elif self.views_type=='sparse':
+#             print(self.views_type, '== sparse')
+            ids = torch.linspace(0, 47, steps=self.n_views+1).round()
+            ids = [np.random.choice(range(int(ids[i]), int(ids[i+1]))) for i in range(len(ids)-1)]
+            view_ids = [src_views[i] for i in ids] + [target_view]
+
+        # 5. source views are dense but as far as possible from the target view.
+#         else self.views_type=='far':
+        else:
+#             print(self.views_type, '== far')
+            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views]
+            view_ids = [src_views[47-i] for i in ids] + [target_view]
+#         else:
+#             view_ids = [src_views[i] for i in range(self.n_views)] + [target_view]
 
 
         affine_mat, affine_mat_inv = [], []

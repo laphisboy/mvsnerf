@@ -885,6 +885,16 @@ class MVSNet(nn.Module):
 
         self.cost_reg_2 = CostRegNet(32+9, norm_act)
 
+        # for timing purpose
+        self.start_1 = torch.cuda.Event(enable_timing=True)
+        self.end_1 = torch.cuda.Event(enable_timing=True)
+           
+        self.start_2 = torch.cuda.Event(enable_timing=True)
+        self.end_2 = torch.cuda.Event(enable_timing=True)
+        
+        self.start_3 = torch.cuda.Event(enable_timing=True)
+        self.end_3 = torch.cuda.Event(enable_timing=True)
+        
     def build_volume_costvar(self, feats, proj_mats, depth_values, pad=0):
         # feats: (B, V, C, H, W)
         # proj_mats: (B, V, 3, 4)
@@ -993,17 +1003,37 @@ class MVSNet(nn.Module):
 
         return img_feat, in_masks
 
-    def forward(self, imgs, proj_mats, near_far, pad=0,  return_color=False, lindisp=False):
+    def forward(self, imgs, proj_mats, near_far, records, pad=0,  return_color=False, lindisp=False):
         # imgs: (B, V, 3, H, W)
         # proj_mats: (B, V, 3, 4) from fine to coarse
         # init_depth_min, depth_interval: (B) or float
         # near_far (B, V, 2)
 
+        self.start_1 = torch.cuda.Event(enable_timing=True)
+        self.end_1 = torch.cuda.Event(enable_timing=True)
+           
+        self.start_2 = torch.cuda.Event(enable_timing=True)
+        self.end_2 = torch.cuda.Event(enable_timing=True)
+        
+        self.start_3 = torch.cuda.Event(enable_timing=True)
+        self.end_3 = torch.cuda.Event(enable_timing=True)
+            
         B, V, _, H, W = imgs.shape
 
         imgs = imgs.reshape(B * V, 3, H, W)
+        
+        ##################
+        # time 1
+        ##################
+        self.start_1.record()
+        #
         feats = self.feature(imgs)  # (B*V, 8, H, W), (B*V, 16, H//2, W//2), (B*V, 32, H//4, W//4)
-
+        #
+        self.end_1.record()
+        torch.cuda.synchronize()
+        records['1_feat'].append(self.start_1.elapsed_time(self.end_1))
+        ##############################################################
+        
         imgs = imgs.view(B, V, 3, H, W)
 
 
@@ -1011,7 +1041,12 @@ class MVSNet(nn.Module):
 
         feats_l = feats_l.view(B, V, *feats_l.shape[1:])  # (B, V, C, h, w)
 
-
+        ##################
+        # time 2
+        ##################
+        self.start_2.record()
+        #
+        
         D = 128
         t_vals = torch.linspace(0., 1., steps=D, device=imgs.device, dtype=imgs.dtype)  # (B, D)
         near, far = near_far  # assume batch size==1
@@ -1023,14 +1058,31 @@ class MVSNet(nn.Module):
         depth_values = depth_values.unsqueeze(0)
         # volume_feat, in_masks = self.build_volume_costvar(feats_l, proj_mats, depth_values, pad=pad)
         volume_feat, in_masks = self.build_volume_costvar_img(imgs, feats_l, proj_mats, depth_values, pad=pad)
+        #
+        self.end_2.record()
+        torch.cuda.synchronize()
+        records['2_costvol'].append(self.start_2.elapsed_time(self.end_2))
+        ##############################################################
+        
         if return_color:
             feats_l = torch.cat((volume_feat[:,:V*3].view(B, V, 3, *volume_feat.shape[2:]),in_masks.unsqueeze(2)),dim=2)
 
-
+        ##################
+        # time 3
+        ##################
+        self.start_3.record()
+        #
         volume_feat = self.cost_reg_2(volume_feat)  # (B, 1, D, h, w)
+        #
+        self.end_3.record()
+        torch.cuda.synchronize()
+        records['3_3dcnn'].append(self.start_3.elapsed_time(self.end_3))
+        ##############################################################
+        
+        
         volume_feat = volume_feat.reshape(1,-1,*volume_feat.shape[2:])
 
-        return volume_feat, feats_l, depth_values
+        return volume_feat, feats_l, depth_values, records
 
 class MVSNet_debug(nn.Module):
     def __init__(self,

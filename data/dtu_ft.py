@@ -147,6 +147,7 @@ class DTU_ft(Dataset):
         self.all_rays = []
         self.all_rgbs = []
         self.all_depth = []
+                
         for idx in self.img_idx:
             proj_mat_filename = os.path.join(self.root_dir, f'Cameras/train/{idx:08d}_cam.txt')
             intrinsic, w2c, near_far = self.read_cam_file(proj_mat_filename)

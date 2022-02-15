@@ -138,3 +138,8 @@ runs_fine_tuning/
 
 # vim ctags file
 tags
+
+# ignore folders
+results/
+runs_new/
+

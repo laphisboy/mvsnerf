@@ -8,6 +8,21 @@ import torchvision.transforms as T
 
 from scipy.spatial.transform import Rotation as R
 
+import sys; import pdb
+
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+
 # Misc
 img2mse = lambda x, y : torch.mean((x - y) ** 2)
 mse2psnr = lambda x : -10. * torch.log(x) / torch.log(torch.Tensor([10.]))
@@ -663,6 +678,8 @@ def homo_warp_debug(src_feat, proj_mat, depth_values, src_grid=None, pad=0):
         ref_grid_d = ref_grid.repeat(1, 1, D)  # (B, 3, D*H*W)
         src_grid_d = R @ ref_grid_d + T / depth_values.view(B, 1, D * W_pad * H_pad)
 
+        ForkedPdb().set_trace()
+
         del ref_grid_d, ref_grid, proj_mat, R, T, depth_values  # release (GPU) memory
 
 
@@ -679,6 +696,8 @@ def homo_warp_debug(src_feat, proj_mat, depth_values, src_grid=None, pad=0):
                                     mode='bilinear', padding_mode='zeros',
                                     align_corners=True)  # (B, C, D, H*W)
     warped_src_feat = warped_src_feat.view(B, -1, D, H_pad, W_pad)
+
+    ForkedPdb().set_trace() 
 
     # src_grid = src_grid.view(B, 1, D, H_pad, W_pad, 2)
     return warped_src_feat, src_grid
