@@ -475,12 +475,14 @@ def read_pfm(filename):
     return data, scale
 
 
-
+# minor change where ...
+# N_views should be divisible by number of c2w given 
 def gen_render_path(c2ws, N_views=30):
     N = len(c2ws)
     rotvec, positions = [], []
     rotvec_inteplat, positions_inteplat = [], []
-    weight = np.linspace(1.0, .0, N_views//3, endpoint=False).reshape(-1, 1)
+    #weight = np.linspace(1.0, .0, N_views//3, endpoint=False).reshape(-1, 1)
+    weight = np.linspace(1.0, .0, N_views//N, endpoint=False).reshape(-1, 1) # to be able to render for more views if given more
     for i in range(N):
         r = R.from_matrix(c2ws[i, :3, :3])
         euler_ange = r.as_euler('xyz', degrees=True).reshape(1, 3)
