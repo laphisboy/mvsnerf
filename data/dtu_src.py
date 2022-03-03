@@ -164,9 +164,10 @@ class MVSDatasetDTU_src(Dataset):
             view_ids = [src_views[i] for i in ids] + [target_view]
             
         # 4. sparse: source views are evenly spaced out
+        # need to test if dtu_src - sparse works or not
         elif self.views_type=='sparse':
 #             print(self.views_type, '== sparse')
-            ids = torch.linspace(0, 47, steps=self.n_views+1).round()
+            ids = torch.linspace(0, 48, steps=self.n_views+1).round()
             ids = [np.random.choice(range(int(ids[i]), int(ids[i+1]))) for i in range(len(ids)-1)]
             view_ids = [src_views[i] for i in ids] + [target_view]
 

@@ -10,12 +10,22 @@ from .ray_utils import *
 
 
 class BlenderDataset_src(Dataset):
-    def __init__(self, args, split='train', load_ref=False):
+    
+    # source_split, select_index 새로 생성
+    def __init__(self, args, split='train',source_split=None, select_index=None, load_ref=False):
         self.args = args
         self.root_dir = args.datadir
         self.split = split
         
+        if source_split is None:
+            self.source_split = self.split
+        else:
+            self.source_split = source_split  # but might not need source split when using two datasets
+        
+        self.select_index = select_index
+        
         self.meta_file = f'transforms_{self.split}.json'
+        self.source_meta_file = f'transforms_{self.source_split}.json' # might not use this (not yet implemented)
         
         downsample = args.imgScale_train if split=='train' else args.imgScale_test
         assert int(800*downsample)%32 == 0, \
@@ -34,12 +44,27 @@ class BlenderDataset_src(Dataset):
         with open(os.path.join(self.root_dir, self.meta_file), 'r') as f:
             self.meta = json.load(f)
 
-        # sub select training views from pairing file
-        if os.path.exists('configs/pairs.th'):
-            name = os.path.basename(self.root_dir)
-            self.img_idx = torch.load('configs/pairs.th')[f'{name}_{self.split}']
+        
+        if self.select_index is not None:
+            if self.select_index == 'pairs.th':  # sub select training views from pairing file
+                if os.path.exists('configs/pairs.th'):
+                    name = os.path.basename(self.root_dir)
+                    self.img_idx = torch.load('configs/pairs.th')[f'{name}_{self.split}']
+                    self.meta['frames'] = [self.meta['frames'][idx] for idx in self.img_idx]
+                    print(f'===> {self.split}ing index: {self.img_idx}')
+                else:  # 에러 처리 
+                    print('no configs/pairs.th file found')
+                    
+            else:  # index 그냥 직접 지정 ㅎㅎ
+                self.img_idx = self.select_idx
+                self.meta['frames'] = [self.meta['frames'][idx] for idx in self.img_idx]
+                print(f'===> {self.split}ing index: {self.img_idx}')
+                
+        else:  # else just use all valid images
+            self.img_idx = [i for i in range(100)]
             self.meta['frames'] = [self.meta['frames'][idx] for idx in self.img_idx]
             print(f'===> {self.split}ing index: {self.img_idx}')
+
 
         w, h = self.img_wh
         self.focal = 0.5 * 800 / np.tan(0.5 * self.meta['camera_angle_x'])  # original focal length
@@ -92,8 +117,11 @@ class BlenderDataset_src(Dataset):
             self.all_rgbs = torch.stack(self.all_rgbs, 0).reshape(-1,*self.img_wh[::-1], 3)  # (len(self.meta['frames]),h,w,3)
             self.all_masks = torch.stack(self.all_masks, 0).reshape(-1,*self.img_wh[::-1])  # (len(self.meta['frames]),h,w,3)
 
-    def read_source_views(self, file=self.meta_file, pair_idx=None, device=torch.device("cpu")):
-        with open(os.path.join(self.root_dir, file), 'r') as f:
+    def read_source_views(self, pair_idx=None, device=torch.device("cpu")): 
+        # source view is always from training dataset
+        # but p
+        
+        with open(os.path.join(self.root_dir, self.source_meta_file), 'r') as f:
             meta = json.load(f)
 
         w, h = self.img_wh
