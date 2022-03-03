@@ -56,7 +56,7 @@ class BlenderDataset_src(Dataset):
                     print('no configs/pairs.th file found')
                     
             else:  # index 그냥 직접 지정 ㅎㅎ
-                self.img_idx = self.select_idx
+                self.img_idx = self.select_index
                 self.meta['frames'] = [self.meta['frames'][idx] for idx in self.img_idx]
                 print(f'===> {self.split}ing index: {self.img_idx}')
                 
