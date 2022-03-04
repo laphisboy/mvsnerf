@@ -218,11 +218,17 @@ def render_blender(view_type='nearest',
                 if is_fixed:
                     
                     if i == 0:
-                        pair_idx = get_pair_idx(source_dataset=dataset_train, 
-                                                target_position=dataset_val.poses[[len(select_index)//2],:3,3],
-                                                N_views=args.num_src_views, 
-                                                view_type=view_type)
-                    
+                        if select_index is not None:
+                            pair_idx = get_pair_idx(source_dataset=dataset_train,
+                                                    target_position=dataset_val.poses[[len(select_index)//2],:3,3],
+                                                    N_views=args.num_src_views, 
+                                                    view_type=view_type)
+                        else:
+                            pair_idx = get_pair_idx(source_dataset=dataset_train,
+                                                    target_position=dataset_val.poses[[50],:3,3],
+                                                    N_views=args.num_src_views, 
+                                                    view_type=view_type)
+                                                    
                     imgs_source, proj_mats, near_far_source, pose_source = dataset_train.read_source_views(pair_idx=pair_idx,
                                                                                                            device=device)
                     
