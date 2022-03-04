@@ -62,6 +62,10 @@ class BlenderDataset_src(Dataset):
                 
         else:  # else just use all valid images
             self.img_idx = [i for i in range(100)]
+            
+            if self.split == 'test':
+                self.img_idx = [i for i in range(200)]
+                
             self.meta['frames'] = [self.meta['frames'][idx] for idx in self.img_idx]
             print(f'===> {self.split}ing index: {self.img_idx}')
 

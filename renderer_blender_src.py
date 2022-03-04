@@ -77,9 +77,9 @@ mse2psnr = lambda x : -10. * np.log(x) / np.log(10.)
 
 def get_source_imgs(source_dataset, target_position, N_views, device, view_type='nearest', 
                     fixed_idxs=None,
-                    use_valid_source=False):
+                    is_source_target_overlap=False):
     
-    pair_idx = get_pair_idx(source_dataset, target_position, N_views, view_type, fixed_idxs, use_valid_source)
+    pair_idx = get_pair_idx(source_dataset, target_position, N_views, view_type, fixed_idxs, is_source_target_overlap)
     
     imgs_source, proj_mats, near_far_source, pose_source = source_dataset.read_source_views(pair_idx=pair_idx,device=device)
     
@@ -88,14 +88,14 @@ def get_source_imgs(source_dataset, target_position, N_views, device, view_type=
 
 def get_pair_idx(source_dataset, target_position, N_views, view_type='nearest', 
                  fixed_idxs=None,
-                 use_valid_source=False):
+                 is_source_target_overlap=False):
     
     positions = source_dataset.poses[:,:3,3]
     dis = np.sum(np.abs(positions - target_position), axis=-1)
     
     dis_sort = np.argsort(dis)
     
-    if use_valid_source:
+    if is_source_target_overlap:
         dis_sort = dis_sort[1:]
             
     
@@ -142,9 +142,11 @@ def render_blender(view_type='nearest',
                    scenes=['ficus'], 
                    num_src_views=3, 
                    ckpt='base-3src-dense.tar', 
+                   source_split='train',
+                   target_split='val',
                    select_index=None, 
                    is_fixed=False, 
-                   use_valid_source=False
+                   is_source_target_overlap=False
                   ):
     
     psnr_all,ssim_all,LPIPS_vgg_all = [],[],[]
@@ -155,15 +157,14 @@ def render_blender(view_type='nearest',
          --dataset_name blender_src --white_bkgd \
         --net_type v0 --ckpt ./ckpts/{ckpt} --num_src_views {num_src_views}'
         
-        save_dir = f'results/{ckpt[:-4]}/all-{num_src_views}src-'
-        
+        save_dir = f'results/{ckpt[:-4]}/blender-{num_src_views}-'
+
         if is_fixed:
             save_dir += 'fixed-'
         
-        if use_valid_source:
-            save_dir += 'val-'
-        
-        save_dir += f'{view_type}'
+        save_dir += f'{view_type}-'
+
+        save_dir += f'{source_split}-{target_split}'
 
         args = config_parser(cmd.split())
         args.use_viewdirs = True
@@ -187,12 +188,9 @@ def render_blender(view_type='nearest',
 
 
         print('============> rendering dataset <===================')
-        dataset_train = dataset_dict[args.dataset_name](args, split='train')
-        dataset_val = dataset_dict[args.dataset_name](args, split='val', select_index=select_index)
-        val_idx = dataset_val.img_idx
-        
-        if use_valid_source:
-            dataset_train = dataset_dict[args.dataset_name](args, split='val')
+        dataset_source = dataset_dict[args.dataset_name](args, split=source_split)
+        dataset_target = dataset_dict[args.dataset_name](args, split=target_split, select_index=select_index)
+        target_idx = dataset_target.img_idx
 
         save_as_image = True
 
@@ -207,7 +205,7 @@ def render_blender(view_type='nearest',
             except Exception:     
                 pass
 
-            for i, batch in enumerate(tqdm(dataset_val)):
+            for i, batch in enumerate(tqdm(dataset_target)):
                 torch.cuda.empty_cache()
 
                 rays, img = decode_batch(batch)
@@ -219,23 +217,23 @@ def render_blender(view_type='nearest',
                     
                     if i == 0:
                         if select_index is not None:
-                            pair_idx = get_pair_idx(source_dataset=dataset_train,
-                                                    target_position=dataset_val.poses[[len(select_index)//2],:3,3],
+                            pair_idx = get_pair_idx(source_dataset=dataset_source,
+                                                    target_position=dataset_target.poses[[len(select_index)//2],:3,3],
                                                     N_views=args.num_src_views, 
                                                     view_type=view_type)
                         else:
-                            pair_idx = get_pair_idx(source_dataset=dataset_train,
-                                                    target_position=dataset_val.poses[[50],:3,3],
+                            pair_idx = get_pair_idx(source_dataset=dataset_source,
+                                                    target_position=dataset_target.poses[[50],:3,3],
                                                     N_views=args.num_src_views, 
                                                     view_type=view_type)
                                                     
-                    imgs_source, proj_mats, near_far_source, pose_source = dataset_train.read_source_views(pair_idx=pair_idx,
+                    imgs_source, proj_mats, near_far_source, pose_source = dataset_source.read_source_views(pair_idx=pair_idx,
                                                                                                            device=device)
                     
                 else:
                 # created fixed image_source
-                    imgs_source, proj_mats, near_far_source, pose_source = get_source_imgs(source_dataset=dataset_train, 
-                                                                                           target_position=dataset_val.poses[[i],:3,3], 
+                    imgs_source, proj_mats, near_far_source, pose_source = get_source_imgs(source_dataset=dataset_source, 
+                                                                                           target_position=dataset_target.poses[[i],:3,3], 
                                                                                            N_views=args.num_src_views, device=device, 
                                                                                            view_type=view_type)
                     
@@ -278,7 +276,7 @@ def render_blender(view_type='nearest',
                 img_vis = np.concatenate((torch.cat(torch.split(imgs_source*255, [1,1,1], dim=1),-1).squeeze().permute(1,2,0).cpu().numpy(),img_vis),axis=1)
 
                 if save_as_image:
-                    imageio.imwrite(f'{save_dir}/{scene}_{val_idx[i]:03d}.png', img_vis.astype('uint8'))
+                    imageio.imwrite(f'{save_dir}/{scene}_{target_idx[i]:03d}.png', img_vis.astype('uint8'))
                 else:
                     rgbs.append(img_vis.astype('uint8'))
 
@@ -307,36 +305,36 @@ def render_blender(view_type='nearest',
 #  # Box 5
 ####
 
-def render_blender_all_settings(scenes=['lego'], num_src_views=3, ckpt='base-3src-dense.tar',select_index=[30,60,90], view_types=[1]):
+def render_blender_all_settings(scenes=['lego'], num_src_views=3, ckpt='base-3src-dense.tar',source_split='train', target_split='val', select_index=[30,60,90], view_types=[1]):
     
     if 1 in view_types:    
-        render_blender('nearest', scenes, num_src_views, ckpt, select_index, is_fixed=None)
+        render_blender('nearest', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None)
 
     if 2 in view_types:    
-        render_blender('dense', scenes, num_src_views, ckpt, select_index, is_fixed=None)
+        render_blender('dense', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None)
 
     if 3 in view_types:    
-        render_blender('sparse', scenes, num_src_views, ckpt, select_index, is_fixed=None)
+        render_blender('sparse', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None)
 
     if 4 in view_types:    
-        render_blender('far', scenes, num_src_views, ckpt, select_index, is_fixed=None)
+        render_blender('far', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None)
 
     if 5 in view_types:    
-        render_blender('random', scenes, num_src_views, ckpt, select_index, is_fixed=None)
+        render_blender('random', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None)
     
 
     if 6 in view_types:    
-        render_blender('nearest', scenes, num_src_views, ckpt, select_index, is_fixed=True)
+        render_blender('nearest', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=True)
 
     if 7 in view_types:    
-        render_blender('sparse', scenes, num_src_views, ckpt, select_index, is_fixed=True)
+        render_blender('sparse', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=True)
 
 
     if 8 in view_types:    
-        render_blender('nearest', scenes, num_src_views, ckpt, select_index, is_fixed=None, use_valid_source=True)
+        render_blender('nearest', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None, is_source_target_overlap=True)
 
     if 9 in view_types:    
-        render_blender('sparse', scenes, num_src_views, ckpt, select_index, is_fixed=None, use_valid_source=True)
+        render_blender('sparse', scenes, num_src_views, ckpt, source_split, target_split, select_index, is_fixed=None, is_source_target_overlap=True)
 
     return None
 
@@ -366,6 +364,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--num_src_views', type=int)
 
+    parser.add_argument('--source', type=str, default='train')
+
+    parser.add_argument('--target', type=str, default='val')
 
     args = parser.parse_args()
     
@@ -373,6 +374,8 @@ if __name__ == '__main__':
     render_blender_all_settings(scenes=args.scenes, 
                                 num_src_views=args.num_src_views, 
                                 ckpt=args.ckpt,
+                                source_split=args.source,
+                                target_split=args.target,
                                 select_index=args.view_indexes, 
                                 view_types=args.view_types)
 
