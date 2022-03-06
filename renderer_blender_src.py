@@ -157,7 +157,7 @@ def render_blender(view_type='nearest',
          --dataset_name blender_src --white_bkgd \
         --net_type v0 --ckpt ./ckpts/{ckpt} --num_src_views {num_src_views}'
         
-        save_dir = f'results/{ckpt[:-4]}/blender-{num_src_views}-'
+        save_dir = f'/mnt/hdd/youngsun/mvsnerf_timing/results/{ckpt[:-4]}/blender-{num_src_views}-'
 
         if is_fixed:
             save_dir += 'fixed-'
@@ -170,7 +170,8 @@ def render_blender(view_type='nearest',
         args.use_viewdirs = True
 
         args.N_samples = 128
-        args.feat_dim =  8+12
+        # args.feat_dim =  8+12
+        args.feat_dim = 8+4*num_src_views
 
         # create models
         if 0==i_scene:
@@ -273,7 +274,8 @@ def render_blender(view_type='nearest',
 
                 rgb_rays = np.concatenate(rgb_rays).reshape(H, W, 3)
                 img_vis = np.concatenate((img*255,rgb_rays*255,depth_rays_preds),axis=1)
-                img_vis = np.concatenate((torch.cat(torch.split(imgs_source*255, [1,1,1], dim=1),-1).squeeze().permute(1,2,0).cpu().numpy(),img_vis),axis=1)
+
+                img_vis = np.concatenate((torch.cat(torch.split(imgs_source*255, [1]*num_src_views, dim=1),-1).squeeze().permute(1,2,0).cpu().numpy(),img_vis),axis=1)
 
                 if save_as_image:
                     imageio.imwrite(f'{save_dir}/{scene}_{target_idx[i]:03d}.png', img_vis.astype('uint8'))
