@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
             for scene in args.scenes:
 
-                base_path = f'/mnt/hdd/youngsun/mvsnerf_timing/results/{ckpt[:-4]}/blender-{num_src_views}-{view_type}-{source}-{target}'
+                base_path = f'/mnt/hdd/youngsun/mvsnerf_timing/results/{ckpt[:-4]}/blender-{num_src_views}-{view_type}-{source}-{target}/{scene}/'
                 scene_path = os.path.join(base_path, scene) + '*.png'
 
                 file_list = glob.glob(scene_path)

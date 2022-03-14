@@ -164,7 +164,7 @@ def render_blender(view_type='nearest',
         
         save_dir += f'{view_type}-'
 
-        save_dir += f'{source_split}-{target_split}'
+        save_dir += f'{source_split}-{target_split}/{scene}'
 
         args = config_parser(cmd.split())
         args.use_viewdirs = True
