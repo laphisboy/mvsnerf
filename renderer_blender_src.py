@@ -1,4 +1,5 @@
 import argparse
+import re
 
 ####
 #  # Box 1
@@ -362,7 +363,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--scenes', nargs='+', default=[])
 
-    parser.add_argument('--ckpt', type=str)
+    parser.add_argument('--ckpts', nargs='+', default=[])
 
     parser.add_argument('--num_src_views', type=int)
 
@@ -372,13 +373,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
+    for ckpt in args.ckpts:
 
-    render_blender_all_settings(scenes=args.scenes, 
-                                num_src_views=args.num_src_views, 
-                                ckpt=args.ckpt,
-                                source_split=args.source,
-                                target_split=args.target,
-                                select_index=args.view_indexes, 
-                                view_types=args.view_types)
+        num_src_views = re.findall('[0-9]+', ckpt)[0]
 
-    torch.cuda.empty_cache()
+        render_blender_all_settings(scenes=args.scenes, 
+                                    num_src_views=num_src_views, 
+                                    ckpt=ckpt,
+                                    source_split=args.source,
+                                    target_split=args.target,
+                                    select_index=args.view_indexes, 
+                                    view_types=args.view_types)
+        torch.cuda.empty_cache()
