@@ -365,8 +365,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--ckpts', nargs='+', default=[])
 
-    parser.add_argument('--num_src_views', type=int)
-
     parser.add_argument('--source', type=str, default='train')
 
     parser.add_argument('--target', type=str, default='val')
@@ -375,7 +373,7 @@ if __name__ == '__main__':
     
     for ckpt in args.ckpts:
 
-        num_src_views = re.findall('[0-9]+', ckpt)[0]
+        num_src_views = int(re.findall('[0-9]+', ckpt)[0])
 
         render_blender_all_settings(scenes=args.scenes, 
                                     num_src_views=num_src_views, 
