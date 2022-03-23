@@ -105,7 +105,7 @@ def get_pair_idx(source_dataset, target_position, N_views, view_type='nearest',
         pair_idx = [source_dataset.img_idx[item] for item in pair_idx]
                 
     if view_type == 'dense':
-        idxs = torch.randperm(int(np.rint(N_views*1.5)))[:N_views]
+        idxs = torch.randperm(int(np.rint(N_views*1.5)))[:N_views].sort()[0]
         pair_idx = dis_sort[idxs]
         pair_idx = [source_dataset.img_idx[item] for item in pair_idx]
     
@@ -121,7 +121,7 @@ def get_pair_idx(source_dataset, target_position, N_views, view_type='nearest',
         pair_idx = [source_dataset.img_idx[item] for item in pair_idx]
         
     if view_type == 'far':
-        idxs = torch.randperm(int(np.rint(N_views*1.5)))[:N_views]
+        idxs = torch.randperm(int(np.rint(N_views*1.5)))[:N_views].sort(descending=True)[0]
         pair_idx = dis_sort[::-1][idxs]
         pair_idx = [source_dataset.img_idx[item] for item in pair_idx]
         

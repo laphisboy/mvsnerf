@@ -148,7 +148,7 @@ class MVSDatasetDTU_src(Dataset):
         # 1. dense: target view and source views are close together (n_views <= 32)
         if self.views_type=='dense':
 #             print(self.views_type, '== dense')
-            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views]
+            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views].sort()[0]
             view_ids = [src_views[i] for i in ids] + [target_view]
 
         # 2. very dense: target view and source views are as clsoe as possible
@@ -175,7 +175,7 @@ class MVSDatasetDTU_src(Dataset):
 #         else self.views_type=='far':
         else:
 #             print(self.views_type, '== far')
-            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views]
+            ids = torch.randperm(int(np.rint(self.n_views*1.5)))[:self.n_views].sort(descending=True)[0]
             view_ids = [src_views[47-i] for i in ids] + [target_view]
 #         else:
 #             view_ids = [src_views[i] for i in range(self.n_views)] + [target_view]
