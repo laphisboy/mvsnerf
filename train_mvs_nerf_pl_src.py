@@ -36,7 +36,7 @@ class MVSSystem(LightningModule):
     def __init__(self, args):
         super(MVSSystem, self).__init__()
         self.args = args
-        self.args.feat_dim = 8+4*(self.args.num_src_views) # 8+3*3
+        self.args.feat_dim = 8+4*(self.args.num_src_views_append_rgb) # 8+3*3
         self.idx = 0
 
         self.loss = SL1Loss()

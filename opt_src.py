@@ -21,6 +21,7 @@ def config_parser(cmd=None):
     parser.add_argument('--img_downscale', type=float, default=1.0)
     parser.add_argument('--pad', type=int, default=24)
     parser.add_argument('--num_src_views', type=int, default=3)
+    parser.add_argument('--num_src_views_append_rgb', type=int, default=3)
     parser.add_argument('--views_type', type=str, default='dense',
                         choices=['dense', 'very_dense', 'random', 'sparse', 'far'])
 

@@ -133,8 +133,7 @@ def gen_pts_feats(imgs, volume_feature, rays_pts, pose_ref, rays_ndc, feat_dim, 
            
         
         input_feat[..., :8] = ray_feats
-               
-        
+                      
         input_feat[..., 8:] = build_color_volume(rays_pts, pose_ref, imgs, img_feat, with_mask=True, downscale=img_downscale)
                         
     else:
@@ -156,7 +155,8 @@ def rendering(args, pose_ref, rays_pts, rays_ndc, depth_candidates, rays_o, rays
         angle = rays_dir/cos_angle.unsqueeze(-1)
 
     # rays_pts
-    input_feat = gen_pts_feats(imgs, volume_feature, rays_pts, pose_ref, rays_ndc, args.feat_dim, \
+    # limit the number of img for appending color
+    input_feat = gen_pts_feats(imgs[:, :args.num_src_views_append_rgb], volume_feature, rays_pts, pose_ref, rays_ndc, args.feat_dim, \
                                img_feat, args.img_downscale, args.use_color_volume, args.net_type)
        
     # rays_ndc = rays_ndc * 2 - 1.0

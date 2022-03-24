@@ -604,7 +604,7 @@ def create_nerf_mvs(args, pts_embedder=True, use_mvs=False, dir_embedder=True):
 
     EncodingNet = None
     if use_mvs:
-        EncodingNet = MVSNet(args.num_src_views).to(device)
+        EncodingNet = MVSNet(args.num_src_views_append_rgb).to(device)
         grad_vars += list(EncodingNet.parameters())    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     start = 0
@@ -862,6 +862,7 @@ class MVSNet(nn.Module):
                  norm_act=InPlaceABN,
                  levels=1):
         super(MVSNet, self).__init__()
+        self.num_src_views = num_src_views
         self.levels = levels  # 3 depth levels
         self.n_depths = [128,32,8]
         self.G = num_groups  # number of groups in groupwise correlation
@@ -870,7 +871,7 @@ class MVSNet(nn.Module):
         self.N_importance = 0
         self.chunk = 1024
 
-        self.cost_reg_2 = CostRegNet(32+3*num_src_views, norm_act)
+        self.cost_reg_2 = CostRegNet(32+3*self.num_src_views, norm_act)
 
     def build_volume_costvar(self, feats, proj_mats, depth_values, pad=0):
         # feats: (B, V, C, H, W)
@@ -943,7 +944,7 @@ class MVSNet(nn.Module):
         if pad > 0:
             ref_feats = F.pad(ref_feats, (pad, pad, pad, pad), "constant", 0)
 
-        img_feat = torch.empty((B, 3 * V + 32, D, *ref_feats.shape[-2:]), device=feats.device, dtype=torch.float)
+        img_feat = torch.empty((B, 3 * self.num_src_views + 32, D, *ref_feats.shape[-2:]), device=feats.device, dtype=torch.float)
         imgs = F.interpolate(imgs.view(B * V, *imgs.shape[2:]), (H, W), mode='bilinear', align_corners=False).view(B, V,-1,H,W).permute(1, 0, 2, 3, 4)
         img_feat[:, :3, :, pad:H + pad, pad:W + pad] = imgs[0].unsqueeze(2).expand(-1, -1, D, -1, -1)
                 
@@ -956,8 +957,12 @@ class MVSNet(nn.Module):
 
         in_masks = torch.ones((B, V, D, H + pad * 2, W + pad * 2), device=volume_sum.device)
         for i, (src_img, src_feat, proj_mat) in enumerate(zip(imgs[1:], src_feats, proj_mats)):
+            
             warped_volume, grid = homo_warp(src_feat, proj_mat, depth_values, pad=pad)
-            img_feat[:, (i + 1) * 3:(i + 2) * 3], _ = homo_warp(src_img, proj_mat, depth_values, src_grid=grid, pad=pad)
+            
+            # so that appended rgb can be limited to args.num_src_views_append_rgb
+            if i < (self.num_src_views - 1):
+                img_feat[:, (i + 1) * 3:(i + 2) * 3], _ = homo_warp(src_img, proj_mat, depth_values, src_grid=grid, pad=pad)
 
             grid = grid.view(B, 1, D, H + pad * 2, W + pad * 2, 2)
             in_mask = ((grid > -1.0) * (grid < 1.0))
@@ -972,6 +977,8 @@ class MVSNet(nn.Module):
                 volume_sq_sum += warped_volume.pow_(2)
                 
             del warped_volume, src_feat, proj_mat
+            
+            
         del src_feats, proj_mats
 
         count = 1.0 / torch.sum(in_masks, dim=1, keepdim=True)
